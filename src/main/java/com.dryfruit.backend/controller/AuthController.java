@@ -1,46 +1,83 @@
 package com.dryfruit.backend.controller;
 
-import com.dryfruit.backend.model.User;
 import com.dryfruit.backend.model.AuthResponse;
+import com.dryfruit.backend.model.User;
 import com.dryfruit.backend.repository.UserRepository;
 import com.dryfruit.backend.security.JwtUtil;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
 public class AuthController {
 
-    @Autowired private UserRepository repo;
-    @Autowired private PasswordEncoder encoder;
-    @Autowired private JwtUtil jwt;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final JwtUtil jwtUtil;
+    private final PasswordEncoder passwordEncoder;
 
-    // REGISTER USER
+    // =========================
+    // REGISTER
+    // =========================
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody User req) {
-        req.setPassword(encoder.encode(req.getPassword()));
-        req.setRoles(Arrays.asList("USER")); // default role
-        repo.save(req);
-        return ResponseEntity.ok("User registered!");
+    public AuthResponse register(@RequestBody User request) {
+
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("User already exists");
+        }
+
+        request.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        if (request.getRoles() == null || request.getRoles().isEmpty()) {
+            request.setRoles(List.of("USER"));
+        }
+
+        User savedUser = userRepository.save(request);
+
+        String token = jwtUtil.generateToken(
+                savedUser.getEmail(),
+                savedUser.getRoles()
+        );
+
+        return new AuthResponse(
+                token,
+                savedUser.getEmail(),
+                savedUser.getRoles()
+        );
     }
 
+    // =========================
     // LOGIN
+    // =========================
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody User request) {
+    public AuthResponse login(@RequestBody User request) {
 
-        User db = repo.findByEmail(request.getEmail());
-        if (db == null) return ResponseEntity.badRequest().body("User Not Found");
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
+        );
 
-        if (!encoder.matches(request.getPassword(), db.getPassword()))
-            return ResponseEntity.badRequest().body("Incorrect password!");
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String token = jwt.generateToken(db.getEmail(), db.getRoles());
+        String token = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRoles()
+        );
 
-        return ResponseEntity.ok(new AuthResponse(token, db.getEmail(), db.getRoles()));
+        return new AuthResponse(
+                token,
+                user.getEmail(),
+                user.getRoles()
+        );
     }
 }

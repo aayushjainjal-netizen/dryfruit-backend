@@ -2,31 +2,31 @@ package com.dryfruit.backend.service;
 
 import com.dryfruit.backend.model.User;
 import com.dryfruit.backend.repository.UserRepository;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 
-import java.util.stream.Collectors;
+import java.util.List;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
-    @Autowired
-    private UserRepository repo;
+    private final UserRepository userRepository;
+
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-        User user = repo.findByEmail(email);
-
-        if (user == null) throw new UsernameNotFoundException("User not found!");
+        User user = userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                user.getRoles().stream().map(SimpleGrantedAuthority::new).collect(Collectors.toList())
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))
         );
     }
 }

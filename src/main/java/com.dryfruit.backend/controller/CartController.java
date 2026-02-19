@@ -3,60 +3,36 @@ package com.dryfruit.backend.controller;
 import com.dryfruit.backend.cart.Cart;
 import com.dryfruit.backend.cart.CartItem;
 import com.dryfruit.backend.service.CartService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/cart")
+@RequiredArgsConstructor
+@CrossOrigin
 public class CartController {
 
-    @Autowired
-    private CartService cartService;
+    private final CartService cartService;
 
-    // ============================
-    // 1️⃣ ADD ITEM TO CART
-    // ============================
-    @PostMapping("/add/{customerId}")
-    public Cart addItemToCart(
-            @PathVariable String customerId,
-            @RequestBody CartItem item
-    ) {
-        System.out.println("ADD TO CART CALLED FOR CUSTOMER: " + customerId);
-        return cartService.addItemToCart(customerId, item);
+    // ✅ Get Logged-in User Cart
+    @GetMapping
+    public Cart getCart(Authentication authentication) {
+        String email = authentication.getName();
+        return cartService.getCartByEmail(email);
     }
 
-    // ============================
-    // 2️⃣ GET CART
-    // ============================
-    @GetMapping("/{customerId}")
-    public Cart getCart(@PathVariable String customerId) {
-        System.out.println("GET CART CALLED FOR CUSTOMER: " + customerId);
-        return cartService.getCart(customerId).orElse(null);
-
+    // ✅ Add Item
+    @PostMapping("/add")
+    public Cart addToCart(@RequestBody CartItem item, Authentication authentication) {
+        String email = authentication.getName();
+        return cartService.addToCart(email, item);
     }
 
-    // ============================
-    // 3️⃣ UPDATE ITEM QUANTITY
-    // ============================
-    @PutMapping("/update/{customerId}")
-    public Cart updateItemQuantity(
-            @PathVariable String customerId,
-            @RequestParam String productId,
-            @RequestParam int quantity
-    ) {
-        System.out.println("UPDATE QTY CALLED FOR CUSTOMER: " + customerId);
-        return cartService.updateItemQuantity(customerId, productId, quantity);
-    }
-
-    // ============================
-    // 4️⃣ REMOVE ITEM FROM CART
-    // ============================
-    @DeleteMapping("/remove/{customerId}")
-    public Cart removeItemFromCart(
-            @PathVariable String customerId,
-            @RequestParam String productId
-    ) {
-        System.out.println("REMOVE ITEM CALLED FOR CUSTOMER = " + customerId);
-        return cartService.removeItem(customerId, productId);
+    // ✅ Remove Item
+    @DeleteMapping("/remove/{productId}")
+    public Cart removeFromCart(@PathVariable String productId, Authentication authentication) {
+        String email = authentication.getName();
+        return cartService.removeFromCart(email, productId);
     }
 }

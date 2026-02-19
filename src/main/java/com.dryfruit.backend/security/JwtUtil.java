@@ -1,6 +1,8 @@
 package com.dryfruit.backend.security;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 
@@ -11,38 +13,43 @@ import java.util.List;
 @Component
 public class JwtUtil {
 
-    private static final String SECRET = "mysecretkeymysecretkeymysecret12"; // 32 chars
+    private final Key SECRET_KEY = Keys.secretKeyFor(SignatureAlgorithm.HS256);
 
-    private Key getSignKey() {
-        return Keys.hmacShaKeyFor(SECRET.getBytes());
-    }
+    private final long EXPIRATION_TIME = 1000 * 60 * 60 * 10; // 10 hours
 
-    public String generateToken(String email, List<String> roles) {
-
+    // 🔥 Generate Token
+    public String generateToken(String username, List<String> roles) {
         return Jwts.builder()
-                .setSubject(email)
+                .setSubject(username)
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24))
-                .signWith(getSignKey(), SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(SECRET_KEY)
                 .compact();
     }
 
-    public String extractEmail(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSignKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
+    // 🔥 Extract Username
+    public String extractUsername(String token) {
+        return extractClaims(token).getSubject();
     }
 
+    // 🔥 Validate Token
     public boolean validateToken(String token) {
-        try {
-            Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
+        return !isTokenExpired(token);
+    }
+
+    // 🔥 Extract Claims
+    private Claims extractClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(SECRET_KEY)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractClaims(token)
+                .getExpiration()
+                .before(new Date());
     }
 }

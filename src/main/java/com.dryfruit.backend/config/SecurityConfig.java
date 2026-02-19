@@ -1,11 +1,10 @@
-package com.dryfruit.backend.config;
+package com.dryfruit.backend.security;
 
-import com.dryfruit.backend.security.JwtAuthFilter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,59 +13,45 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@RequiredArgsConstructor
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
-        http.csrf(csrf -> csrf.disable());
-
-        http.sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
-        http.authorizeHttpRequests(auth -> auth
-
-                // PUBLIC
-                .requestMatchers("/auth/**").permitAll()
-                .requestMatchers("/otp/**").permitAll()
-
-                // USER + ADMIN → PRODUCT LIST
-                .requestMatchers("/products/all").hasAnyAuthority("ADMIN", "USER")
-
-                // ONLY ADMIN → PRODUCT CRUD
-                .requestMatchers("/products/add",
-                        "/products/update/**",
-                        "/products/delete/**").hasAuthority("ADMIN")
-
-                // CART → ONLY LOGGED IN USERS
-                .requestMatchers("/cart/**").authenticated()
-
-                // ADMIN DASHBOARD
-                .requestMatchers("/admin/**").hasAuthority("ADMIN")
-
-                .requestMatchers("/orders/update-status/**").hasAuthority("ADMIN")
-
-
-                // EVERYTHING ELSE REQUIRES LOGIN
-                .anyRequest().authenticated()
-        );
-
-        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
     }
 
+    // Password Encoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // Authentication Manager
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config)
-            throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    // Security Filter Chain
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {})
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/products/**").permitAll()
+                        .requestMatchers("/error").permitAll()   // IMPORTANT FIX
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 }
